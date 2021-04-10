@@ -28,7 +28,7 @@ namespace hardware {
 class BpHwBinder : public IBinder
 {
 public:
-                        BpHwBinder(int32_t handle);
+                        BpHwBinder(int32_t handle, bool isHostHwBinder=false);
 
     inline  int32_t     handle() const { return mHandle; }
 
@@ -116,6 +116,7 @@ private:
             ObjectManager       mObjects;
             Parcel*             mConstantData;
     mutable String16            mDescriptorCache;
+            bool                mIsHostHwBinder;
 };
 
 } // namespace hardware

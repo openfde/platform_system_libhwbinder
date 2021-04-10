@@ -53,6 +53,7 @@ TextOutput& alog(gLogTextOutput);
 
 Mutex& gProcessMutex = *new Mutex;
 sp<ProcessState> gProcess;
+sp<ProcessState> gHostProcess;
 
 }   // namespace hardware
 }   // namespace android

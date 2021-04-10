@@ -276,17 +276,23 @@ static const void* printCommand(TextOutput& out, const void* _cmd)
 
 static pthread_mutex_t gTLSMutex = PTHREAD_MUTEX_INITIALIZER;
 static std::atomic<bool> gHaveTLS = false;
+static std::atomic<bool> gHostHaveTLS = false;
 static pthread_key_t gTLS = 0;
+static pthread_key_t gHostTLS = 0;
 static std::atomic<bool> gShutdown = false;
+static std::atomic<bool> gHostShutdown = false;
 
-IPCThreadState* IPCThreadState::self()
+IPCThreadState* IPCThreadState::self(bool isHost)
 {
-    if (gHaveTLS.load(std::memory_order_acquire)) {
+    if (isHost) {
+        return IPCThreadState::selfForHost();
+    }
 restart:
+    if (gHaveTLS.load(std::memory_order_acquire)) {
         const pthread_key_t k = gTLS;
         IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
         if (st) return st;
-        return new IPCThreadState;
+        return new IPCThreadState(isHost);
     }
 
     // Racey, heuristic test for simultaneous shutdown.
@@ -310,29 +316,83 @@ restart:
     goto restart;
 }
 
-IPCThreadState* IPCThreadState::selfOrNull()
+IPCThreadState* IPCThreadState::selfForHost()
 {
-    if (gHaveTLS.load(std::memory_order_acquire)) {
-        const pthread_key_t k = gTLS;
+    const bool isHost = true;
+restart:
+    if (gHostHaveTLS.load(std::memory_order_acquire)) {
+        const pthread_key_t k = gHostTLS;
         IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
-        return st;
+        if (st) return st;
+        return new IPCThreadState(isHost);
+    }
+
+    if (gHostShutdown.load(std::memory_order_acquire)) {
+        ALOGW("Calling IPCThreadState::self() during shutdown is dangerous, expect a crash.\n");
+        return nullptr;
+    }
+
+    pthread_mutex_lock(&gTLSMutex);
+    if (!gHostHaveTLS) {
+        int key_create_value = pthread_key_create(&gHostTLS, threadDestructor);
+        if (key_create_value != 0) {
+            pthread_mutex_unlock(&gTLSMutex);
+            ALOGW("IPCThreadState::self() unable to create TLS key, expect a crash: %s\n",
+                    strerror(key_create_value));
+            return nullptr;
+        }
+        gHostHaveTLS.store(true, std::memory_order_release);
+    }
+    pthread_mutex_unlock(&gTLSMutex);
+    goto restart;
+}
+
+IPCThreadState* IPCThreadState::selfOrNull(bool isHost)
+{
+    if (isHost) {
+        if (gHostHaveTLS.load(std::memory_order_acquire)) {
+            const pthread_key_t k = gHostTLS;
+            IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
+            return st;
+        }
+    } else {
+        if (gHaveTLS.load(std::memory_order_acquire)) {
+            const pthread_key_t k = gTLS;
+            IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
+            return st;
+        }
     }
     return nullptr;
 }
 
-void IPCThreadState::shutdown()
+void IPCThreadState::shutdown(bool isHost)
 {
-    gShutdown.store(true, std::memory_order_relaxed);
+    if (isHost) {
+        gHostShutdown.store(true, std::memory_order_relaxed);
 
-    if (gHaveTLS.load(std::memory_order_acquire)) {
-        // XXX Need to wait for all thread pool threads to exit!
-        IPCThreadState* st = (IPCThreadState*)pthread_getspecific(gTLS);
-        if (st) {
-            delete st;
-            pthread_setspecific(gTLS, nullptr);
+        if (gHostHaveTLS.load(std::memory_order_acquire)) {
+            // XXX Need to wait for all thread pool threads to exit!
+            IPCThreadState* st = (IPCThreadState*)pthread_getspecific(gHostTLS);
+            if (st) {
+                delete st;
+                pthread_setspecific(gHostTLS, nullptr);
+            }
+            pthread_key_delete(gHostTLS);
+            gHostHaveTLS.store(false, std::memory_order_release);
         }
-        pthread_key_delete(gTLS);
-        gHaveTLS.store(false, std::memory_order_release);
+    } else {
+        gShutdown.store(true, std::memory_order_relaxed);
+
+        if (gHaveTLS.load(std::memory_order_acquire)) {
+            // XXX Need to wait for all thread pool threads to exit!
+            IPCThreadState* st = (IPCThreadState*)pthread_getspecific(gTLS);
+            if (st) {
+                delete st;
+                pthread_setspecific(gTLS, nullptr);
+            }
+            pthread_key_delete(gTLS);
+            gHaveTLS.store(false, std::memory_order_release);
+        }
     }
 }
 
@@ -768,15 +828,16 @@ status_t IPCThreadState::clearDeathNotification(int32_t handle, BpHwBinder* prox
     return NO_ERROR;
 }
 
-IPCThreadState::IPCThreadState()
+IPCThreadState::IPCThreadState(bool isHost)
     : mProcess(ProcessState::self()),
       mServingStackPointer(nullptr),
       mStrictModePolicy(0),
       mLastTransactionBinderFlags(0),
       mIsLooper(false),
       mIsPollingThread(false),
-      mCallRestriction(mProcess->mCallRestriction) {
-    pthread_setspecific(gTLS, this);
+      mCallRestriction(mProcess->mCallRestriction),
+      mIsHost(isHost) {
+    pthread_setspecific(mIsHost ? gHostTLS : gTLS, this);
     clearCaller();
     mIn.setDataCapacity(256);
     mOut.setDataCapacity(256);
@@ -1309,7 +1370,8 @@ void IPCThreadState::threadDestructor(void *st)
 void IPCThreadState::freeBuffer(Parcel* parcel, const uint8_t* data,
                                 size_t /*dataSize*/,
                                 const binder_size_t* /*objects*/,
-                                size_t /*objectsSize*/, void* /*cookie*/)
+                                size_t /*objectsSize*/, void* /*cookie*/,
+                                bool isHost)
 {
     //ALOGI("Freeing parcel %p", &parcel);
     IF_LOG_COMMANDS() {
@@ -1317,7 +1379,7 @@ void IPCThreadState::freeBuffer(Parcel* parcel, const uint8_t* data,
     }
     ALOG_ASSERT(data != nullptr, "Called with NULL data");
     if (parcel != nullptr) parcel->closeFileDescriptors();
-    IPCThreadState* state = self();
+    IPCThreadState* state = self(isHost);
     state->mOut.writeInt32(BC_FREE_BUFFER);
     state->mOut.writePointer((uintptr_t)data);
 }

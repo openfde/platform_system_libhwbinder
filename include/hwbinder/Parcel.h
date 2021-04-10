@@ -239,7 +239,7 @@ private:
     typedef void        (*release_func)(Parcel* parcel,
                                         const uint8_t* data, size_t dataSize,
                                         const binder_size_t* objects, size_t objectsSize,
-                                        void* cookie);
+                                        void* cookie, bool isHost);
 
     uintptr_t           ipcData() const;
     size_t              ipcDataSize() const;
@@ -296,6 +296,7 @@ private:
 
     release_func        mOwner;
     void*               mOwnerCookie;
+    bool                mIsHost;
 };
 // ---------------------------------------------------------------------------
 
