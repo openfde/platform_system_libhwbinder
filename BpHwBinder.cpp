@@ -105,6 +105,7 @@ status_t BpHwBinder::transact(
 {
     // Once a binder has died, it will never come back to life.
     if (mAlive) {
+        data.SetIsHost(mIsHostHwBinder);
         status_t status = IPCThreadState::self(mIsHostHwBinder)->transact(
             mHandle, code, data, reply, flags);
 
@@ -113,6 +114,7 @@ status_t BpHwBinder::transact(
         }
 
         if (status == DEAD_OBJECT) mAlive = 0;
+        reply->SetIsHost(mIsHostHwBinder);
         return status;
     }
 

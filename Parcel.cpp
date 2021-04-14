@@ -380,6 +380,11 @@ bool Parcel::enforceInterface(const char* interface) const
     }
 }
 
+void Parcel::SetIsHost(bool value) const
+{
+    mIsHost = value;
+}
+
 const binder_size_t* Parcel::objects() const
 {
     return mObjects;
@@ -618,7 +623,7 @@ status_t Parcel::writeString16(const char16_t* str, size_t len)
 }
 status_t Parcel::writeStrongBinder(const sp<IBinder>& val)
 {
-    return flatten_binder(ProcessState::self(), val, this);
+    return flatten_binder(ProcessState::self(mIsHost), val, this);
 }
 
 template <typename T>
@@ -639,7 +644,7 @@ restart_write:
                 const flat_binder_object *fbo = reinterpret_cast<const flat_binder_object*>(hdr);
                 if (fbo->binder != 0) {
                     mObjects[mObjectsSize++] = mDataPos;
-                    acquire_binder_object(ProcessState::self(), *fbo, this);
+                    acquire_binder_object(ProcessState::self(mIsHost), *fbo, this);
                 }
                 break;
             }
@@ -1201,7 +1206,7 @@ status_t Parcel::readStrongBinder(sp<IBinder>* val) const
 
 status_t Parcel::readNullableStrongBinder(sp<IBinder>* val) const
 {
-    return unflatten_binder(ProcessState::self(), *this, val);
+    return unflatten_binder(ProcessState::self(mIsHost), *this, val);
 }
 
 sp<IBinder> Parcel::readStrongBinder() const
@@ -1688,7 +1693,7 @@ void Parcel::print(TextOutput& to, uint32_t /*flags*/) const
 
 void Parcel::releaseObjects()
 {
-    const sp<ProcessState> proc(ProcessState::self());
+    const sp<ProcessState> proc(ProcessState::self(mIsHost));
     size_t i = mObjectsSize;
     uint8_t* const data = mData;
     binder_size_t* const objects = mObjects;
@@ -1702,7 +1707,7 @@ void Parcel::releaseObjects()
 
 void Parcel::acquireObjects()
 {
-    const sp<ProcessState> proc(ProcessState::self());
+    const sp<ProcessState> proc(ProcessState::self(mIsHost));
     size_t i = mObjectsSize;
     uint8_t* const data = mData;
     binder_size_t* const objects = mObjects;
@@ -1894,7 +1899,7 @@ status_t Parcel::continueWrite(size_t desired)
     } else if (mData) {
         if (objectsSize < mObjectsSize) {
             // Need to release refs on any objects we are dropping.
-            const sp<ProcessState> proc(ProcessState::self());
+            const sp<ProcessState> proc(ProcessState::self(mIsHost));
             for (size_t i=objectsSize; i<mObjectsSize; i++) {
                 const flat_binder_object* flat
                     = reinterpret_cast<flat_binder_object*>(mData+mObjects[i]);

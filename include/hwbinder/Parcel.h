@@ -72,6 +72,7 @@ public:
     // Parses the RPC header, returning true if the interface name
     // in the header matches the expected interface from the caller.
     bool                enforceInterface(const char* interface) const;
+    void                SetIsHost(bool value) const;
 
     void                freeData();
 
@@ -296,7 +297,7 @@ private:
 
     release_func        mOwner;
     void*               mOwnerCookie;
-    bool                mIsHost;
+    mutable bool        mIsHost;
 };
 // ---------------------------------------------------------------------------
 
