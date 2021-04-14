@@ -58,6 +58,7 @@ protected:
     virtual bool threadLoop()
     {
         IPCThreadState::self()->joinThreadPool(mIsMain);
+        IPCThreadState::selfForHost()->joinThreadPool(mIsMain);
         return false;
     }
 
@@ -151,7 +152,7 @@ sp<IBinder> ProcessState::getContextObject(const String16& name, const sp<IBinde
         return nullptr;
     }
 
-    IPCThreadState* ipc = IPCThreadState::self();
+    IPCThreadState* ipc = IPCThreadState::self(mIsHost);
     {
         Parcel data, reply;
         // no interface token on this magic transaction
@@ -274,7 +275,7 @@ size_t ProcessState::getMmapSize() {
 }
 
 void ProcessState::setCallRestriction(CallRestriction restriction) {
-    LOG_ALWAYS_FATAL_IF(IPCThreadState::selfOrNull() != nullptr,
+    LOG_ALWAYS_FATAL_IF(IPCThreadState::selfOrNull(mIsHost) != nullptr,
         "Call restrictions must be set before the threadpool is started.");
 
     mCallRestriction = restriction;
@@ -307,7 +308,7 @@ sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
         // in getWeakProxyForHandle() for more info about this.
         IBinder* b = e->binder;
         if (b == nullptr || !e->refs->attemptIncWeak(this)) {
-            b = new BpHwBinder(handle);
+            b = new BpHwBinder(handle, mIsHost);
             e->binder = b;
             if (b) e->refs = b->getWeakRefs();
             result = b;
@@ -341,7 +342,7 @@ wp<IBinder> ProcessState::getWeakProxyForHandle(int32_t handle)
         // arriving from the driver.
         IBinder* b = e->binder;
         if (b == nullptr || !e->refs->attemptIncWeak(this)) {
-            b = new BpHwBinder(handle);
+            b = new BpHwBinder(handle, mIsHost);
             result = b;
             e->binder = b;
             if (b) e->refs = b->getWeakRefs();

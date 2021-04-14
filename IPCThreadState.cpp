@@ -829,7 +829,7 @@ status_t IPCThreadState::clearDeathNotification(int32_t handle, BpHwBinder* prox
 }
 
 IPCThreadState::IPCThreadState(bool isHost)
-    : mProcess(ProcessState::self()),
+    : mProcess(ProcessState::self(isHost)),
       mServingStackPointer(nullptr),
       mStrictModePolicy(0),
       mLastTransactionBinderFlags(0),
