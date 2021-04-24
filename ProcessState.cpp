@@ -49,20 +49,20 @@ namespace hardware {
 class PoolThread : public Thread
 {
 public:
-    explicit PoolThread(bool isMain)
-        : mIsMain(isMain)
+    explicit PoolThread(bool isMain, bool isHostHwBinder)
+        : mIsMain(isMain), mIsHostHwBinder(isHostHwBinder)
     {
     }
 
 protected:
     virtual bool threadLoop()
     {
-        IPCThreadState::self()->joinThreadPool(mIsMain);
-        IPCThreadState::selfForHost()->joinThreadPool(mIsMain);
+        IPCThreadState::self(mIsHostHwBinder)->joinThreadPool(mIsMain);
         return false;
     }
 
     const bool mIsMain;
+    const bool mIsHostHwBinder;
 };
 
 sp<ProcessState> ProcessState::self()
@@ -385,7 +385,7 @@ void ProcessState::spawnPooledThread(bool isMain)
     if (mThreadPoolStarted) {
         String8 name = makeBinderThreadName();
         ALOGV("Spawning new pooled thread, name=%s\n", name.string());
-        sp<Thread> t = new PoolThread(isMain);
+        sp<Thread> t = new PoolThread(isMain, mIsHost);
         t->run(name.string());
     }
 }

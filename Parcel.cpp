@@ -249,8 +249,14 @@ status_t unflatten_binder(const sp<ProcessState>& proc,
 // ---------------------------------------------------------------------------
 
 Parcel::Parcel()
+    : Parcel(false)
 {
-    LOG_ALLOC("Parcel %p: constructing", this);
+}
+
+Parcel::Parcel(bool useHostHwBinder)
+{
+    LOG_ALLOC("Parcel %p: constructing, useHostHwBinder=%d", this, useHostHwBinder);
+    mIsHost = useHostHwBinder;
     initState();
 }
 
@@ -2001,7 +2007,6 @@ void Parcel::initState()
     mAllowFds = true;
     mOwner = nullptr;
     clearCache();
-    mIsHost = false;
 
     // racing multiple init leads only to multiple identical write
     if (gMaxFds == 0) {

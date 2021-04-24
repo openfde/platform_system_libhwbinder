@@ -54,6 +54,7 @@ public:
     virtual void        detachObject(const void* objectID);
 
     virtual BpHwBinder*   remoteBinder();
+            bool        isHostHwBinder();
 
             void        sendObituary();
                         // This refcount includes:
