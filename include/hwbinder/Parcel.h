@@ -250,7 +250,7 @@ private:
     size_t              ipcBufferSize() const;
     void                ipcSetDataReference(const uint8_t* data, size_t dataSize,
                                             const binder_size_t* objects, size_t objectsCount,
-                                            release_func relFunc, void* relCookie);
+                                            release_func relFunc, void* relCookie, bool isHost=false);
 
 public:
     void                print(TextOutput& to, uint32_t flags = 0) const;

@@ -1634,7 +1634,7 @@ size_t Parcel::ipcBufferSize() const
 }
 
 void Parcel::ipcSetDataReference(const uint8_t* data, size_t dataSize,
-    const binder_size_t* objects, size_t objectsCount, release_func relFunc, void* relCookie)
+    const binder_size_t* objects, size_t objectsCount, release_func relFunc, void* relCookie, bool isHost)
 {
     binder_size_t minOffset = 0;
     freeDataNoInit();
@@ -1650,6 +1650,7 @@ void Parcel::ipcSetDataReference(const uint8_t* data, size_t dataSize,
     clearCache();
     mOwner = relFunc;
     mOwnerCookie = relCookie;
+    mIsHost = isHost;
     for (size_t i = 0; i < mObjectsSize; i++) {
         binder_size_t offset = mObjects[i];
         if (offset < minOffset) {

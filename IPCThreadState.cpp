@@ -924,21 +924,21 @@ status_t IPCThreadState::waitForResponse(Parcel *reply, status_t *acquireResult)
                             tr.data_size,
                             reinterpret_cast<const binder_size_t*>(tr.data.ptr.offsets),
                             tr.offsets_size/sizeof(binder_size_t),
-                            freeBuffer, this);
+                            freeBuffer, this, mIsHost);
                     } else {
                         err = *reinterpret_cast<const status_t*>(tr.data.ptr.buffer);
                         freeBuffer(nullptr,
                             reinterpret_cast<const uint8_t*>(tr.data.ptr.buffer),
                             tr.data_size,
                             reinterpret_cast<const binder_size_t*>(tr.data.ptr.offsets),
-                            tr.offsets_size/sizeof(binder_size_t), this);
+                            tr.offsets_size/sizeof(binder_size_t), this, mIsHost);
                     }
                 } else {
                     freeBuffer(nullptr,
                         reinterpret_cast<const uint8_t*>(tr.data.ptr.buffer),
                         tr.data_size,
                         reinterpret_cast<const binder_size_t*>(tr.data.ptr.offsets),
-                        tr.offsets_size/sizeof(binder_size_t), this);
+                        tr.offsets_size/sizeof(binder_size_t), this, mIsHost);
                     continue;
                 }
             }
@@ -1224,7 +1224,7 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
                 reinterpret_cast<const uint8_t*>(tr.data.ptr.buffer),
                 tr.data_size,
                 reinterpret_cast<const binder_size_t*>(tr.data.ptr.offsets),
-                tr.offsets_size/sizeof(binder_size_t), freeBuffer, this);
+                tr.offsets_size/sizeof(binder_size_t), freeBuffer, this, mIsHost);
 
             const void* origServingStackPointer = mServingStackPointer;
             mServingStackPointer = &origServingStackPointer; // anything on the stack
